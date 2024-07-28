@@ -8,5 +8,5 @@ all: kilo
 clean:
 	rm -rf kilo
 
-count: count.c
+kilo: kilo.c
 	$(CC) $(CFLAGS) kilo.c -o kilo
