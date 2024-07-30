@@ -18,18 +18,21 @@ struct termios orig_termios;
 /*** terminal ***/
 
 /*
-Prints the error code and terminates the program
-
-Parameters:
-  s: a pointer to a cons char string
+* Prints the error code and terminates the program
+*
+* Parameters:
+*   s: a pointer to a cons char string
 */
 void die(const char *s) {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+	
     perror(s);
     exit(1);
 }
 
 /*
-Restores the terminal to its original state
+* Restores the terminal to its original state
 */
 void disableRawMode() {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
@@ -37,7 +40,7 @@ void disableRawMode() {
 }
 
 /*
-raw mode (your inputs will no longer be visible)
+* raw mode (your inputs will no longer be visible)
 */
 void enableRawMode() {
    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
@@ -58,10 +61,10 @@ void enableRawMode() {
 }
 
 /*
-Reads one byte at a time from stdin
-
-Returns:
-  that key/byte as a character
+* Reads one byte at a time from stdin
+*
+* Returns:
+*   that key/byte as a character
 */
 char editorReadKey() {
     int nread;
@@ -74,22 +77,35 @@ char editorReadKey() {
 
 /*** output ***/
 
+/*
+* Writing 4 bytes to the terminal to Refresh/clear the screen
+*
+* \x1b[:
+*   /x1b = escape char (27 in decimal)
+*   [ = everything after this is a certain command
+* commands:
+*   2J = clear the entire screen
+*    H = positions cursor at the first row and first column
+*/
 void editorRefreshScreen() {
     write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
 /*** input ***/
 
 /*
-Checks for certain key combinations in order to execute commands
+* Checks for certain key combinations in order to execute commands
 */
 void editorProcessKeypress() {
     char c = editorReadKey();
 
     switch(c) {
         case CTRL_KEY('q'):
-          exit(0);
-          break;
+	    write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);	
+            exit(0);
+        break;
     }
 }
 
