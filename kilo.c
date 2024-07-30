@@ -78,6 +78,16 @@ char editorReadKey() {
 /*** output ***/
 
 /*
+* Draws a tilde at the beginning of each row in the editor.
+*/
+void editorDrawRows() {
+    int y;
+    for (y = 0; y < 24; y++) {
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
+
+/*
 * Writing 4 bytes to the terminal to Refresh/clear the screen
 *
 * \x1b[:
@@ -89,6 +99,10 @@ char editorReadKey() {
 */
 void editorRefreshScreen() {
     write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
+    editorDrawRows();
+
     write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
