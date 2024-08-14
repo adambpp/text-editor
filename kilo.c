@@ -48,7 +48,7 @@ struct editorConfig {
     int screenrows;
     int screencols;
     int numrows;
-    erow row;
+    erow *row;
     struct termios orig_termios;
 };
 
@@ -216,10 +216,34 @@ int getWindowSize(int *rows, int *cols) {
     }
 }
 
+/*** row operations ***/
+
+/*
+* Allocates space for a new erow, then copies the string s to a new erow at the
+* end of the E.row array
+*
+* Parameters:
+*   s: the string to append to the buffer
+* len: the length of the string s
+*/
+void editorAppendRow(char *s, size_t len) {
+    E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+    int at = E.numrows;
+    E.row[at].size = len;
+    E.row[at].chars = malloc(len + 1);
+    memcpy(E.row[at].chars, s, len);
+    E.row[at].chars[len] = '\0';
+    E.numrows++;
+}
+
 /*** file i/o ***/
 
 /*
-This function purpose is to open and read a file from disk
+* This function purpose is to open and read a file from disk
+*
+* Parameters:
+*   filename: the name of the file to open and process
 */
 void editorOpen(char *filename) {
     FILE *fp = fopen(filename, "r");
@@ -232,14 +256,10 @@ void editorOpen(char *filename) {
     // feed the values into getline() which will then return the length of the line read
     linelen = getline(&line, &linecap, fp);
     if (linelen != -1) {
-        while (line > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r')) {
+        while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r')) {
             linelen--;
             }
-        E.row.size = linelen;
-        E.row.chars = malloc(linelen + 1);
-        memcpy(E.row.chars, line, linelen);
-        E.row.chars[linelen] = '\0';
-        E.numrows = 1;
+        editorAppendRow(line, linelen);
     }
     free(line);
     fclose(fp);
@@ -297,7 +317,7 @@ void editorDrawRows(struct abuf *ab) {
         // check if we are currently drawing a row that is part of the text buffer or not
         if (y >= E.numrows) {
             // if not then draw the welcome message or tilde otherwise
-            if (y == E.screenrows / 3) {
+            if (E.numrows == 0 && y == E.screenrows / 3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome),
                 "Kilo editor -- version %s", KILO_VERSION);
@@ -317,9 +337,9 @@ void editorDrawRows(struct abuf *ab) {
         } else {
             // drawing a row that's part of the text buffer but first making sure it can
             // fit within the screen length
-            int len = E.row.size;
+            int len = E.row[y].size;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, E.row.chars, len);
+            abAppend(ab, E.row[y].chars, len);
         } 
 
         abAppend(ab, "\x1b[K", 3);
@@ -439,6 +459,7 @@ void initEditor() {
     E.cx = 0;
     E.cy = 0;
     E.numrows = 0;
+    E.row = NULL;
 
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 }
