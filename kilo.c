@@ -253,12 +253,13 @@ void editorOpen(char *filename) {
     char *line = NULL;
     size_t linecap = 0;
     ssize_t linelen;
-    // feed the values into getline() which will then return the length of the line read
-    linelen = getline(&line, &linecap, fp);
-    if (linelen != -1) {
+    // feed the values into getline() which will then return the length of the line read until
+    // no lines are left in the file
+    while ((linelen = getline(&line, &linecap, fp)) != -1) {
         while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r')) {
             linelen--;
             }
+        // call function to append the line to the row buffer    
         editorAppendRow(line, linelen);
     }
     free(line);
