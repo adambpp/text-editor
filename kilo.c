@@ -45,6 +45,8 @@ typedef struct erow { // erow = "editor row"
 
 struct editorConfig {
     int cx, cy; // (cursor x pos (column), cursor y pos (row))
+    int rowoff; // index of the row in the file that is currently at the top of the screen
+    int coloff;
     int screenrows;
     int screencols;
     int numrows;
@@ -303,6 +305,28 @@ void abFree(struct abuf *ab) {
 /*** output ***/
 
 /*
+* This function makes sure the cursor is always visible on the screen.
+*/
+void editorScroll() {
+    // checking if cursor is past the top of the screen
+    if (E.cy < E.rowoff) {
+        E.rowoff = E.cy;
+    }
+    // checking if the cursor is past the bottom of the screen
+    if (E.cy >= E.rowoff + E.screenrows) {
+        E.rowoff = E.cy - E.screenrows + 1;
+    }
+    // checking if the user is past the left of the screen
+    if (E.cx < E.coloff) {
+        E.coloff = E.cx;
+    }
+    // checking if the user is past the right side of the screen
+    if (E.cx >= E.coloff + E.screencols) {
+        E.coloff = E.cx - E.screencols + 1;
+    }
+}
+
+/*
 * Draws a tilde at the beginning of each row in the editor.
 * Also currently draws a welcome message onto the center of the screen.
 *
@@ -315,8 +339,9 @@ void abFree(struct abuf *ab) {
 void editorDrawRows(struct abuf *ab) {
     int y;
     for (y = 0; y < E.screenrows; y++) {
+        int filerow = y + E.rowoff;
         // check if we are currently drawing a row that is part of the text buffer or not
-        if (y >= E.numrows) {
+        if (filerow >= E.numrows) {
             // if not then draw the welcome message or tilde otherwise
             if (E.numrows == 0 && y == E.screenrows / 3) {
                 char welcome[80];
@@ -336,11 +361,12 @@ void editorDrawRows(struct abuf *ab) {
                 abAppend(ab, "~", 1);
             }  
         } else {
-            // drawing a row that's part of the text buffer but first making sure it can
-            // fit within the screen length
-            int len = E.row[y].size;
+            // drawing a row that's part of the text buffer and adjusting for 
+            // horizontal scrolling (coloff)
+            int len = E.row[filerow].size - E.coloff;
+            if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, E.row[y].chars, len);
+            abAppend(ab, &E.row[filerow].chars[E.coloff], len);
         } 
 
         abAppend(ab, "\x1b[K", 3);
@@ -363,6 +389,8 @@ void editorDrawRows(struct abuf *ab) {
 * ?25h = re-enable cursor visibility
 */
 void editorRefreshScreen() {
+    editorScroll();
+
     struct abuf ab = ABUF_INIT;
 
     abAppend(&ab, "\x1b[?25l", 6);
@@ -371,7 +399,7 @@ void editorRefreshScreen() {
     editorDrawRows(&ab);
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx - E.coloff) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     abAppend(&ab, "\x1b[?25h", 6);
@@ -397,9 +425,7 @@ void editorMoveCursor(int key) {
         }
           break;
         case ARROW_RIGHT:
-        if (E.cx != E.screencols - 1) {
           E.cx++;
-        }
           break;
         case ARROW_UP:
           if (E.cy != 0) {
@@ -407,7 +433,7 @@ void editorMoveCursor(int key) {
           }
           break;
         case ARROW_DOWN:
-        if (E.cy != E.screenrows - 1) {
+        if (E.cy < E.numrows) {
           E.cy++;
         }
           break;
@@ -459,6 +485,8 @@ void editorProcessKeypress() {
 void initEditor() {
     E.cx = 0;
     E.cy = 0;
+    E.rowoff = 0;
+    E.coloff = 0;
     E.numrows = 0;
     E.row = NULL;
 
