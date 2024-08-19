@@ -418,6 +418,9 @@ void editorRefreshScreen() {
 *   key: the char of the inputted keypress
 */
 void editorMoveCursor(int key) {
+    // checking if the cursor is on an actual line
+    erow *row = (E.cy >= E.numrows) ? NULL: &E.row[E.cy];
+
     switch (key) {
         case ARROW_LEFT:
         if (E.cx != 0) {
@@ -425,7 +428,9 @@ void editorMoveCursor(int key) {
         }
           break;
         case ARROW_RIGHT:
-          E.cx++;
+        if (row && E.cx < row->size) {
+            E.cx++;
+        }
           break;
         case ARROW_UP:
           if (E.cy != 0) {
@@ -437,6 +442,14 @@ void editorMoveCursor(int key) {
           E.cy++;
         }
           break;
+    }
+
+    // Making sure cursor snaps back to end of line when you go down and the
+    // next line is shorter than the previous one
+    row = (E.cy >= E.numrows) ? NULL: &E.row[E.cy];
+    int rowlen = row ? row->size : 0;
+    if (E.cx > rowlen) {
+        E.cx = rowlen;
     }
 }
 
