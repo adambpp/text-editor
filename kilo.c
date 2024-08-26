@@ -18,6 +18,7 @@
 /*** defines ***/
 
 #define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
 
 // strips the upper 3 bits from k to simulate what CTRL does in the terminal
 #define CTRL_KEY(k) (k & 0x1f)
@@ -39,7 +40,9 @@ enum editorKey {
 
 typedef struct erow { // erow = "editor row"
     int size;
+    int rsize;
     char *chars;
+    char *render;
 } erow;
 
 
@@ -221,6 +224,39 @@ int getWindowSize(int *rows, int *cols) {
 /*** row operations ***/
 
 /*
+* Updates the current row by coping it to the render buffer to then
+* handle special chars such as tabs
+*
+* Parameters:
+*   *row: pointer to the text row to update
+*/
+void editorUpdateRow(erow *row) {
+    int tabs = 0;
+    int j;
+    for (j = 0; j < row->size; j++) {
+        // checking if current char is a tab to know how much memory to allocate
+        if (row->chars[j] == '\t') tabs++;
+    }        
+    free(row->render);
+    // row->size already counts 1 byte for each tab, so we multiply the num of
+    // tabs by 7 and add it to row->size to get the max amount of memory needed
+    row->render = malloc(row->size + tabs*(KILO_TAB_STOP - 1) + 1);
+    int idx = 0;
+    for (j = 0; j < row->size; j++) {
+        if (row->chars[j] == '\t') {
+            // insert a single space, and then keep inserting spaces until
+            // a tab stop column has been reached
+            row->render[idx++] = ' ';
+            while (idx % KILO_TAB_STOP != 0) row -> render[idx++] = ' ';
+        } else {
+            row->render[idx++] = row->chars[j];
+        }
+    }
+    row->render[idx] = '\0';
+    row->rsize = idx;
+}
+
+/*
 * Allocates space for a new erow, then copies the string s to a new erow at the
 * end of the E.row array
 *
@@ -237,6 +273,11 @@ void editorAppendRow(char *s, size_t len) {
     memcpy(E.row[at].chars, s, len);
     E.row[at].chars[len] = '\0';
     E.numrows++;
+
+    // initializing struct members and calling rendering function
+    E.row[at].rsize = 0;
+    E.row[at].render = NULL;
+    editorUpdateRow(&E.row[at]);
 }
 
 /*** file i/o ***/
@@ -363,10 +404,10 @@ void editorDrawRows(struct abuf *ab) {
         } else {
             // drawing a row that's part of the text buffer and adjusting for 
             // horizontal scrolling (coloff)
-            int len = E.row[filerow].size - E.coloff;
+            int len = E.row[filerow].rsize - E.coloff;
             if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
-            abAppend(ab, &E.row[filerow].chars[E.coloff], len);
+            abAppend(ab, &E.row[filerow].render[E.coloff], len);
         } 
 
         abAppend(ab, "\x1b[K", 3);
